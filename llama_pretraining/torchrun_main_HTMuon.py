@@ -36,6 +36,34 @@ from c_adamw import AdamW as C_AdamW
 from lion_pytorch import Lion
 from normuon import NorMuonWithAuxAdam,HTNorMuonHTWithAuxAdam,HTNorMuonWithAuxAdam,HTNorMuonNSWithAuxAdam,HTNorMuonIntervalWithAuxAdam,HTNorMuonNSIntervalWithAuxAdam
 from opt_config import configure_optimizers as opt_configure_optimizers
+from spectral_variants import (
+    FreonWithAuxAdam,
+    DynMuonWithAuxAdam,
+    SoftMuonWithAuxAdam,
+    ContraMuonWithAuxAdam,
+    SpectralPowerWithAuxAdam,
+)
+
+SPECTRAL_FAMILY_OPTS = {
+    "muon",
+    "normuon",
+    "htmuon",
+    "htmuon_ht",
+    "htmuon_stream",
+    "htmuon_normuon",
+    "htmuon_normuon_ht",
+    "htmuon_interval",
+    "htmuon_normuon_interval",
+    "htmuon_ns",
+    "htmuon_ns_interval",
+    "htmuon_normuon_ns",
+    "htmuon_normuon_ns_interval",
+    "freon",
+    "dynmuon",
+    "softmuon",
+    "contramuon",
+    "spectral_p",
+}
 
 transformers.logging.set_verbosity_error()
 
@@ -106,9 +134,19 @@ def parse_args(args):
     parser.add_argument("--target_eval_tokens", type=int, default=10_000_000)
     parser.add_argument("--save_every", type=int, default=10000)
     parser.add_argument("--continue_from", type=str, default=None) 
-    parser.add_argument("--optimizer", type=str, default="adam") 
-
-    
+    parser.add_argument("--optimizer", type=str, default="adam")
+    parser.add_argument("--freon_c", type=float, default=2.0 / 3.0,
+                        help="Freon Schatten dual exponent c in (GG^T)^{-c}G; c=1/2 is Muon, c>1/2 is quasi-norm.")
+    parser.add_argument("--soft_alpha", type=float, default=0.5,
+                        help="SoftMuon mix: 0=normalized SGD, 1=Muon.")
+    parser.add_argument("--contra_coeff", type=float, default=0.5,
+                        help="ContraMuon exaggeration coefficient.")
+    parser.add_argument("--dynmuon_pmax", type=float, default=1.0)
+    parser.add_argument("--dynmuon_pmin", type=float, default=-0.25)
+    parser.add_argument("--dynmuon_tau", type=float, default=0.04)
+    parser.add_argument("--dynmuon_width", type=float, default=0.04)
+    parser.add_argument("--spectral_use_svd", action="store_true",
+                        help="Use exact SVD for DynMuon / spectral_p instead of Fast-Spectral / NS.")
 
     parser.add_argument('--batchnorm',          default=True,   type=lambda x: (str(x).lower() == 'true'),  help='balancing batch norm layer')
     parser.add_argument('--filter_zeros',       default=False,  type=lambda x: (str(x).lower() == 'true')   )
@@ -359,7 +397,7 @@ def main(args):
     #             use_muon=False, lr=args.lr, betas=(0.9, 0.95), weight_decay=args.weight_decay),
     #     ]
 
-    if 'muon' in args.optimizer.lower():
+    if args.optimizer.lower() in SPECTRAL_FAMILY_OPTS or "muon" in args.optimizer.lower():
         body_modules = nn.ModuleDict({
             "layers": model.model.layers,
             "norm": model.model.norm,
@@ -483,7 +521,29 @@ def main(args):
             learning_rate=args.lr,
             lrmuon=args.lrmuon
         )
-        optimizer = opt_adamw   
+        optimizer = opt_adamw
+    elif args.optimizer.lower() == "freon":
+        optimizer = FreonWithAuxAdam(trainable_params, freon_c=args.freon_c)
+    elif args.optimizer.lower() == "dynmuon":
+        optimizer = DynMuonWithAuxAdam(
+            trainable_params,
+            total_steps=args.num_training_steps,
+            p_max=args.dynmuon_pmax,
+            p_min=args.dynmuon_pmin,
+            tau=args.dynmuon_tau,
+            width=args.dynmuon_width,
+            use_svd=args.spectral_use_svd,
+        )
+    elif args.optimizer.lower() == "softmuon":
+        optimizer = SoftMuonWithAuxAdam(trainable_params, soft_alpha=args.soft_alpha)
+    elif args.optimizer.lower() == "contramuon":
+        optimizer = ContraMuonWithAuxAdam(trainable_params, contra_coeff=args.contra_coeff)
+    elif args.optimizer.lower() == "spectral_p":
+        optimizer = SpectralPowerWithAuxAdam(
+            trainable_params,
+            power=args.power,
+            use_svd=True,
+        )
     else:
         raise ValueError(f"Optimizer {args.optimizer} not supported")
 
