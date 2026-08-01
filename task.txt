@@ -1,0 +1,16 @@
+Hi everyone, Recently,  several papers  have explored broad spectral families of optimizers related to HTMuon, where the update takes the form U\Sigma^pV^T. Some papers include:
+
+Freon: explores the regime (p>1): https://arxiv.org/abs/2605.11181
+DynMuon: considers a dynamic (p) within the range ([-1,1]): https://arxiv.org/pdf/2605.17109
+A paper that studies how to derive an optimal value of p: https://hal.science/hal-05626222/document#page=4.87  inspired by Dmitriy’s paper: https://arxiv.org/abs/2512.04299
+Soft Muon, which has recently been used for strong benchmark performance on X  https://github.com/nilin/contra-muon
+
+
+These works are highly relevant to our planned HTMuon v2 project. In addition to exploring different choices of  p, many of them propose efficient alternatives to directly computing the SVD-based update.
+
+Our  goal For HTMuon v2 is to derive insights from a theoretical framework similar to Dmitriy’s paper and develop an adaptive-p optimizer. Ideally, the choice of p could also be layer-wise adaptive. More broadly, we would like to understand, under the LMO framework, when different spectral optimizers should be preferred.
+
+For the first step, I think we can proceed as follows.
+
+TASK:
+Could you help reproduce the algorithms from the papers above on LLaMA 60M and 135M models using the C4 dataset? It would be helpful to compare their performance with HTMuon and understand how large the differences are in practice.
